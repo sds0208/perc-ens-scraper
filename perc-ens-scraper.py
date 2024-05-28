@@ -129,7 +129,8 @@ cur.execute("""CREATE TABLE IF NOT EXISTS ensembles3 (
     id INT PRIMARY KEY,
     title VARCHAR(255),
     composer VARCHAR(255),
-    link VARCHAR(255)
+    link VARCHAR(255),
+    audio VARCHAR(255)
 );
 """)
 
