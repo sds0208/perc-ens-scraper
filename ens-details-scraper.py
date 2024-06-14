@@ -24,12 +24,12 @@ conn = psycopg2.connect(host=HOST, dbname=DBNAME, user=USER, port=PORT, password
 cur = conn.cursor()
 
 # Get all rows from the table
-cur.execute('SELECT * from ensembles3')
+cur.execute('SELECT * from ensembles5')
 result = cur.fetchall()
 
 # Get IP Proxies from hidden file
 with open('valid_proxies.txt', 'r') as f:
-    proxiesList = f.read().split('\n')
+    proxies_list = f.read().split('\n')
 
 # Loop through each row
 for item in result:
@@ -38,9 +38,10 @@ for item in result:
     composer = item[2]
     url_to_scrape = item[3]
     audio = item[4]
+    description = item[5]
 
     # Modify this condition based on what data is still needed
-    if ('c-alan' in url_to_scrape) and (not 'digital' in title.lower()) and (not composer and not composer == '') and (not audio and not audio == ''):
+    if (not composer) or (not description) or (not audio):
         print('*** SCRAPING ***', title)
         print()
         
@@ -48,66 +49,61 @@ for item in result:
         sleep_num = random.choice([210, 290, 51, 200, 220, 250, 30])
 
         # Randomize IPs used
-        proxy_url = random.choice(proxiesList)
+        proxy_url = random.choice(proxies_list)
 
         # Define selectors to look for on each site
-        c_alan_composer_selector = ''
-        selector = ''
+        composer_selector = ''
+        audio_selector = ''
+        description_selector = ''
 
         if 'tapspace' in url_to_scrape:
-            selector = '.product-custom-field iframe'
+            audio_selector = '.product-custom-field iframe'
+            description_selector = '.product-right .purchase-l'
         elif 'c-alan' in url_to_scrape:
-            selector = '.product-details iframe'
-            c_alan_composer_selector = '.product-details .BrandRow .Value a span'
+            audio_selector = '.product-details iframe'
+            composer_selector = '.product-details .BrandRow .Value a span'
+            description_selector = '#DescriptionTab p'
         elif 'rowloff' in url_to_scrape:
-            selector = '.audio-player audio source'
+            audio_selector = '.audio-player audio source'
+            description_selector = '.product-details'
 
         # Make request for HTML
-        proxies = { 
-                "http": proxy_url
-                }
-        r = requests.get(url_to_scrape, proxies=proxies)
+        r = requests.get(url_to_scrape, proxies={ "http": proxy_url })
 
         # Parse HTML
-        soup = BeautifulSoup(r.text, 'html.parser')
-        audioElList = soup.select(selector)
-        audioUrl = ''
-        if (len(audioElList) > 0):
-            audioUrl = audioElList[0].get('src')
+        soup = BeautifulSoup(r.text, 'html.parser')    
 
-        # If C.Alan, get audio and composer
-        if ('c-alan' in url_to_scrape) and (not composer):
-            composer = soup.select(c_alan_composer_selector)[0].get_text().strip()
-            
-            # Update database
-            cur.execute('UPDATE ensembles3 SET composer=%s WHERE id=%s;', (composer, id))
-            cur.execute('UPDATE ensembles3 SET audio=%s WHERE id=%s;', (audioUrl, id))
-            
-            # Commit updates
-            conn.commit()
+        audio_element_list = soup.select(audio_selector)
+        description_element_list = soup.select(description_selector)
+        composer_element_list = []
 
-            # See new entry
-            cur.execute("""SELECT * FROM ensembles3 WHERE id=%s""", ([id]))
-            res = cur.fetchall()
-            print(res)
-            print()
-
-        # Otherwise just get audio
-        elif not 'c-alan' in url_to_scrape:
-            # Update database
-            cur.execute('UPDATE ensembles3 SET audio=%s WHERE id=%s;', (audioUrl, id))
-            
-            # Commit updates
-            conn.commit()
-
-            # See new entry
-            cur.execute("""SELECT * FROM ensembles3 WHERE id=%s""", ([id]))
-            res = cur.fetchall()
-            print(res)
-            print()
+        if composer_selector:
+            composer_element_list = soup.select(composer_selector)
         
+        # Update database
+        if (len(composer_element_list) > 0):
+            composer = composer_element_list[0].get_text().strip()
+            cur.execute('UPDATE ensembles5 SET composer=%s WHERE id=%s;', (composer, id))
+        
+        if (len(description_element_list) > 0):
+            description = description_element_list[0].get_text().strip()
+            cur.execute('UPDATE ensembles5 SET description=%s WHERE id=%s;', (description, id))
 
-        # Wait a few seconds before executing next request
+        if (len(audio_element_list) > 0):
+            audio_url = audio_element_list[0].get('src')
+            cur.execute('UPDATE ensembles5 SET audio=%s WHERE id=%s;', (audio_url, id))
+        
+        
+        # Commit updates
+        conn.commit()
+
+        # See new entry
+        cur.execute('SELECT * FROM ensembles5 WHERE id=%s', ([id]))
+        res = cur.fetchall()
+        print(res)
+        print()
+        
+        # Wait a while before executing next request
         time.sleep(sleep_num)
 
 cur.close()

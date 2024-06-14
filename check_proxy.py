@@ -5,6 +5,7 @@ import requests
 q = queue.Queue()
 valid_proxies = []
 
+# Check the validity of the supposedly valid ip proxies
 with open('valid_proxies.txt', 'r') as f:
     proxies = f.read().split('\n')
     for p in proxies:
